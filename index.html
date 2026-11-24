@@ -7,19 +7,23 @@
 <link href="https://fonts.googleapis.com/css2?family=Libre+Franklin:wght@400;600;700;800&family=Source+Serif+4:opsz,wght@8..60,600;8..60,700&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/d3@7.9.0/dist/d3.min.js"></script>
 <style>
+  /* page and title */
   body { margin: 0; font-family: 'Libre Franklin', sans-serif; color: #161616; background: #fff; }
   .wrap { max-width: 1260px; margin: 0 auto; padding: 34px 28px 50px; }
   .kicker { font-size: 12px; font-weight: 700; letter-spacing: .14em; text-transform: uppercase; color: #d1495b; }
   h1 { font-family: 'Source Serif 4', serif; font-size: 38px; line-height: 1.12; margin: 8px 0 8px; max-width: 900px; }
   .sub { font-size: 15px; color: #666; margin: 0 0 20px; max-width: 860px; line-height: 1.5; }
+  /* buttons */
   .controls { display: flex; gap: 26px; flex-wrap: wrap; align-items: center; margin-bottom: 18px; }
   .seg { display: flex; gap: 6px; align-items: center; font-size: 13px; color: #777; }
   .seg button { font: 600 12.5px 'Libre Franklin'; border: 1px solid #ddd; background: #fff; border-radius: 99px; padding: 7px 13px; cursor: pointer; color: #555; transition: all .25s; }
   .seg button.on { background: #161616; color: #fff; border-color: #161616; }
+  /* the three headline numbers (--c is set by the code to the group's colour) */
   .kpis { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin-bottom: 6px; }
   .kpi { border-top: 3px solid var(--c); padding: 10px 2px 0; transition: border-color .6s; }
   .kpi b { display: block; font: 800 40px/1 'Libre Franklin'; color: var(--c); transition: color .6s; }
   .kpi span { font-size: 13.5px; color: #555; }
+  /* ribbon chart on the left, map and detail card on the right */
   .main { display: grid; grid-template-columns: 1fr 340px; gap: 24px; align-items: start; }
   svg { width: 100%; height: auto; display: block; }
   text { font-family: 'Libre Franklin', sans-serif; }
@@ -29,20 +33,26 @@
   #detail { font-size: 13.5px; color: #555; line-height: 1.5; min-height: 230px; }
   #detail h2 { font-family: 'Source Serif 4', serif; font-size: 24px; color: #161616; margin: 2px 0 6px; }
   #detail .big { font: 700 15px 'Libre Franklin'; color: var(--c); }
+  /* data note at the bottom */
   .note { font-size: 12px; color: #888; line-height: 1.6; margin-top: 24px; border-top: 1px solid #eee; padding-top: 10px; }
+  /* small screens: everything in one column */
   @media (max-width: 900px) { .main { grid-template-columns: 1fr; } aside { border: 0; padding: 0; } .kpis { grid-template-columns: 1fr; } h1 { font-size: 28px; } }
 </style>
 </head>
 <body>
 <div class="wrap">
+  <!-- title -->
   <div class="kicker">Rising Tide</div>
   <h1>Dubai's flats are selling where people, and the metro, aren't yet</h1>
   <p class="sub">Each ribbon is a community: its share of residents on the left, its share of flat sales on the right. Click a group on the right to see when its new residents arrive.</p>
+  <!-- buttons: the code adds them into these two boxes -->
   <div class="controls">
     <div class="seg" id="split">Split communities by</div>
     <div class="seg" id="periods">Period</div>
   </div>
+  <!-- the three headline numbers (filled by the code) -->
   <div class="kpis" id="kpis"></div>
+  <!-- ribbon chart (left) and map + detail card (right); the code draws inside these -->
   <div class="main">
     <svg id="flow" viewBox="0 0 880 640"></svg>
     <aside>
@@ -51,172 +61,412 @@
       <div id="detail"></div>
     </aside>
   </div>
+  <!-- where the data comes from and its limits -->
   <p class="note"><b>Data.</b> Dubai Land Department transactions, 10% random sample (course file): sales of units with sub-type Flat, 1 Jan 2015 – 31 Aug 2026 (older records are sparse and partly implausible; September 2026 is incomplete), dates read as UTC. Shares, not counts, because the file is a sample. Residents: Dubai Data and Statistics Establishment, estimated population by community (usual residents, 2018–2025), joined on the community code. Each period uses the estimate nearest its middle: 2015–17 uses 2018 (the earliest available), 2018–20 uses 2019, 2021–23 uses 2022 and 2024–26 uses 2025. Its 2019 figures match the course file's Population 2019. Metro: the 56 stations in the course repo (Red and Green lines and the Expo branch, as of about 2020); distance is a straight line from the community's centre to the nearest station, so large communities may have a station nearer their edge. "The busiest" = the fewest communities that together make half of all flat sales in the period. Ready or off-plan: ready flats (registered as existing) can be lived in from the sale; off-plan flats were sold before completion, so people move in after handover; the file has no completion dates, and some buyers are investors who will rent the flat out. Flat size: from the bedrooms recorded on each sale (rooms_en); used as a sign of household type, not a record of who the buyers are (studio or 1-bed, 2-bed, 3-bed or more); "% = 2-bed+" is the share of flats with two or more bedrooms; sales with no bedroom count are left out of that bar.</p>
 </div>
 
 <script>
 // =====================================================================
-// 1. LOAD AND CLEAN THE DATA
+// PLANNER VIEW: Do flat sales happen where people live?
+//
+// The code runs from top to bottom in this order:
+//    1. Settings
+//    2. Load the data
+//    3. Clean the data and build one profile per community
+//    4. State: what is selected right now
+//    5. The two ways to split the city
+//    6. Numbers: measure()
+//    7. Ribbon chart: create the shapes (once)
+//    8. Ribbon chart: draw() puts them in place
+//    9. Name labels next to the bars
+//   10. Map
+//   11. Highlight one community or group: focus()
+//   12. Detail card
+//   13. Drill-down: when do new residents arrive?
+//   14. Headline numbers
+//   15. Buttons, hover and click
+//   16. Start
+// The population table is in its own script at the end of the file.
+//
+// Search for these words to jump to them:
+//   ANIMATION  every animated change
+//   CLICK      every click
+//   HOVER      every hover
 // =====================================================================
-const BASE = 'https://raw.githubusercontent.com/sharios/CS333/main/2026-27/';
-const START = Date.UTC(2015, 0, 1), END = Date.UTC(2026, 8, 1);            // 1 Jan 2015 – 31 Aug 2026
-const PERIODS = { '2015–17': [2015, 2017], '2018–20': [2018, 2020], '2021–23': [2021, 2023], '2024–26': [2024, 2026] };
-const POP_YEAR = { '2015–17': 2018, '2018–20': 2019, '2021–23': 2022, '2024–26': 2025 };   // population estimate used for each period
-const NICK = { 681: 'JVC', 346: 'Business Bay', 392: 'Dubai Marina', 345: 'Downtown', 631: 'Dubai Hills', 415: 'Creek Harbour',
-               393: 'JLT', 621: 'International City', 521: 'Dubai South', 626: 'Silicon Oasis', 321: 'Maritime City' };
-const pct = v => (v * 100).toFixed(1) + '%', pct0 = v => Math.round(v * 100) + '%';
-const SIZE_KEY = [['#d4dde8', 'studio/1-bed'], ['#8eaacb', '2-bed'], ['#2f5d8a', '3-bed+']];   // bedrooms: studio/1-bed, 2-bed, 3-bed+
 
-Promise.all([d3.csv(BASE + 'Part%202/transactions.csv'), d3.json(BASE + 'Part%202/dubai.geojson'),
-             d3.json(BASE + 'Part%203/dubai_metro_stations.geojson')]).then(([tx, geo, metro]) => {
-  const parse = d3.utcParse('%Y-%m-%d');
-  const sales = tx.filter(r => {                                            // flat sales inside the time window
-    const d = parse(r.instance_date);
-    r.year = d && d.getUTCFullYear();
-    return d && d >= START && d < END && r.trans_group_en === 'Sales' && r.property_type_en === 'Unit' && r.property_sub_type_en === 'Flat';
-  });
-  const byComm = d3.group(sales, r => +r.comm_num);
+
+// =====================================================================
+// 1. SETTINGS
+// =====================================================================
+const BASE = 'https://raw.githubusercontent.com/sharios/CS333/main/2026-27/';   // course data repo
+const START = Date.UTC(2015, 0, 1), END = Date.UTC(2026, 8, 1);                // 1 Jan 2015 up to 31 Aug 2026
+const PERIODS = { '2015–17': [2015, 2017], '2018–20': [2018, 2020], '2021–23': [2021, 2023], '2024–26': [2024, 2026] };
+const POP_YEAR = { '2015–17': 2018, '2018–20': 2019, '2021–23': 2022, '2024–26': 2025 };   // population year used for each period
+const NICK = { 681: 'JVC', 346: 'Business Bay', 392: 'Dubai Marina', 345: 'Downtown', 631: 'Dubai Hills', 415: 'Creek Harbour',
+               393: 'JLT', 621: 'International City', 521: 'Dubai South', 626: 'Silicon Oasis', 321: 'Maritime City' };   // short names
+const SIZE_KEY = [['#d4dde8', 'studio/1-bed'], ['#8eaacb', '2-bed'], ['#2f5d8a', '3-bed+']];   // flat size colours
+const READY = '#55697f', OFFPLAN = '#e5a43a';                                  // ready = dark, off-plan = gold
+const pct = v => (v * 100).toFixed(1) + '%', pct0 = v => Math.round(v * 100) + '%';   // 0.123 -> "12.3%" / "12%"
+
+
+// =====================================================================
+// 2. LOAD THE DATA (all three files at the same time)
+// =====================================================================
+Promise.all([
+  d3.csv(BASE + 'Part%202/transactions.csv'),                // property deals
+  d3.json(BASE + 'Part%202/dubai.geojson'),                  // community shapes
+  d3.json(BASE + 'Part%203/dubai_metro_stations.geojson')    // metro stations
+]).then(([tx, geo, metro]) => {
   const stations = metro.features.map(f => f.geometry.coordinates);
-  const kmToMetro = (lon, lat) => d3.min(stations, s => d3.geoDistance([lon, lat], s)) * 6371;   // great-circle distance
-  // one row per community: name, residents, distance to the metro, and its flat sales (year, off-plan or not)
-  const comms = geo.features.map(f => {
-    const p = f.properties, id = +p.COMM_NUM;
-    const name = p.CNAME_E.toLowerCase().replace(/(^|[\s.])\w/g, c => c.toUpperCase()).replace(/\s*\(.*/, '').trim();
-    return { id, label: NICK[id] || name, pops: POP_BY_YEAR[id] || [], lon: +p.Longitude, lat: +p.Latitude, feature: f,
-             km: kmToMetro(+p.Longitude, +p.Latitude), deals: (byComm.get(id) || []).map(r => ({ y: r.year, off: r.reg_type_en === 'Off-Plan Properties',
-               size: !r.rooms_en ? null : ['Studio', 'Single Room', '1 B/R'].includes(r.rooms_en) ? 0 : r.rooms_en === '2 B/R' ? 1 : 2 })) };
-  });
+  const comms = buildCommunities(tx, geo, stations);
   start(comms, stations);
 });
 
-function start(comms, stations) {
-  const state = { period: '2024–26', split: 'sales', drill: null, pinned: null };
-  let POP = 0; const YEARS = d3.range(2015, 2026);                         // POP: Dubai's residents in the period's population year
-  comms.forEach(c => { c.yearly = YEARS.map(y => c.deals.filter(r => r.y === y).length);
-                       c.yearlyOff = YEARS.map(y => c.deals.filter(r => r.y === y && r.off).length); });
 
-  // =====================================================================
-  // 2. TWO WAYS TO SPLIT THE CITY (the planner's two questions)
-  // =====================================================================
+// =====================================================================
+// 3. CLEAN THE DATA AND BUILD ONE PROFILE PER COMMUNITY
+// =====================================================================
+function buildCommunities(tx, geo, stations) {
+  // keep only flat sales inside the time window
+  const parse = d3.utcParse('%Y-%m-%d');
+  const sales = tx.filter(r => {
+    const d = parse(r.instance_date);
+    r.year = d && d.getUTCFullYear();
+    return d && d >= START && d < END
+      && r.trans_group_en === 'Sales'
+      && r.property_type_en === 'Unit'
+      && r.property_sub_type_en === 'Flat';
+  });
+
+  // put the sales into one group per community number
+  const byComm = d3.group(sales, r => +r.comm_num);
+
+  // distance from a point to the nearest metro station in km (great-circle distance x earth radius)
+  const kmToMetro = (lon, lat) => d3.min(stations, s => d3.geoDistance([lon, lat], s)) * 6371;
+
+  // flat size group from the bedrooms column: 0 = studio/1-bed, 1 = 2-bed, 2 = 3-bed+, null = not recorded
+  const sizeOf = rooms => !rooms ? null : ['Studio', 'Single Room', '1 B/R'].includes(rooms) ? 0 : rooms === '2 B/R' ? 1 : 2;
+
+  // one profile per community in the map file, joined to its sales by the community number
+  return geo.features.map(f => {
+    const p = f.properties, id = +p.COMM_NUM;
+    const name = p.CNAME_E.toLowerCase()
+      .replace(/(^|[\s.])\w/g, c => c.toUpperCase())   // "AL BARSHA" -> "Al Barsha"
+      .replace(/\s*\(.*/, '').trim();                   // drop anything in brackets
+    return {
+      id,
+      label: NICK[id] || name,
+      pops: POP_BY_YEAR[id] || [],                      // residents 2018–2025 (table at the end of the file)
+      lon: +p.Longitude, lat: +p.Latitude,
+      feature: f,                                       // shape for the map
+      km: kmToMetro(+p.Longitude, +p.Latitude),
+      deals: (byComm.get(id) || []).map(r => ({
+        y: r.year,                                      // year of the sale
+        off: r.reg_type_en === 'Off-Plan Properties',   // sold before the building was finished?
+        size: sizeOf(r.rooms_en)                        // flat size group
+      }))
+    };
+  });
+}
+
+
+function start(comms, stations) {
+
+  // ===================================================================
+  // 4. STATE: what is selected right now
+  // ===================================================================
+  const state = {
+    period: '2024–26',   // which three years
+    split: 'sales',      // 'sales' or 'metro'
+    drill: null,         // which group is opened in the drill-down (null = none)
+    pinned: null         // the community that was clicked
+  };
+  let POP = 0;                                  // Dubai's residents in the period's population year (set in measure)
+  const YEARS = d3.range(2015, 2026);           // 2015–2025 for the small chart (2026 is only part of a year)
+  comms.forEach(c => {
+    c.yearly    = YEARS.map(y => c.deals.filter(r => r.y === y).length);           // flats sold each year
+    c.yearlyOff = YEARS.map(y => c.deals.filter(r => r.y === y && r.off).length);  // of which off-plan
+  });
+
+
+  // ===================================================================
+  // 5. THE TWO WAYS TO SPLIT THE CITY
+  // each split gives: button text, group names, colours, the rule for
+  // which group a community is in, and the three headline numbers
+  // ===================================================================
   const SPLITS = {
-    sales: { button: 'How much they sell', names: m => [`The busiest ${m.busiest}`, 'Some flat sales', 'No flat sold'],
-      colours: ['#d1495b', '#dcb46b', '#4f86b5'], group: (c, m) => m.top.has(c.id) ? 0 : c.sold ? 1 : 2,
-      kpis: m => [[m.busiest, '', 'communities made half of all flat sales', 0], [m.g[0].people * 100, '%', 'of Dubai\'s residents live in them', 0],
-                  [m.g[2].people * 100, '%', 'of residents live in communities where not one flat sold', 2]], },
-    metro: { button: 'Distance to the metro', names: () => ['Within 1 km of metro', '1–3 km from metro', 'Over 3 km from metro'],
-      colours: ['#178f86', '#9fd0c7', '#e0793a'], group: c => c.km <= 1 ? 0 : c.km <= 3 ? 1 : 2,
-      kpis: m => [[m.g[0].people * 100, '%', 'of residents live in communities within 1 km of a metro station', 0], [m.g[0].sales * 100, '%', 'of flat sales were there', 0],
-                  [m.g[2].sales * 100, '%', 'of flat sales were in communities more than 3 km from a station', 2]], }
+    sales: {
+      button: 'How much they sell',
+      names: m => [`The busiest ${m.busiest}`, 'Some flat sales', 'No flat sold'],
+      colours: ['#d1495b', '#dcb46b', '#4f86b5'],
+      group: (c, m) => m.top.has(c.id) ? 0 : c.sold ? 1 : 2,
+      kpis: m => [[m.busiest, '', 'communities made half of all flat sales', 0],
+                  [m.g[0].people * 100, '%', 'of Dubai\'s residents live in them', 0],
+                  [m.g[2].people * 100, '%', 'of residents live in communities where not one flat sold', 2]]
+    },
+    metro: {
+      button: 'Distance to the metro',
+      names: () => ['Within 1 km of metro', '1–3 km from metro', 'Over 3 km from metro'],
+      colours: ['#178f86', '#9fd0c7', '#e0793a'],
+      group: c => c.km <= 1 ? 0 : c.km <= 3 ? 1 : 2,
+      kpis: m => [[m.g[0].people * 100, '%', 'of residents live in communities within 1 km of a metro station', 0],
+                  [m.g[0].sales * 100, '%', 'of flat sales were there', 0],
+                  [m.g[2].sales * 100, '%', 'of flat sales were in communities more than 3 km from a station', 2]]
+    }
   };
 
+
+  // ===================================================================
+  // 6. NUMBERS: measure() works out every number for the chosen period
+  // ===================================================================
   const familyShare = n => d3.sum(n) ? (n[1] + n[2]) / d3.sum(n) : null;   // share of flats with 2+ bedrooms
+
   function measure() {
-    const inP = p => r => r.y >= PERIODS[p][0] && r.y <= PERIODS[p][1];
-    comms.forEach(c => { c.pop = c.pops[POP_YEAR[state.period] - 2018] || 0; const d = c.deals.filter(inP(state.period)); c.sold = d.length; c.off = d.filter(r => r.off).length;
-      c.sizes = [0, 1, 2].map(k => d.filter(r => r.size === k).length); c.family = familyShare(c.sizes); });
+    const inPeriod = r => r.y >= PERIODS[state.period][0] && r.y <= PERIODS[state.period][1];
+
+    // a) each community's residents and flat sales in the period
+    comms.forEach(c => {
+      c.pop = c.pops[POP_YEAR[state.period] - 2018] || 0;
+      const d = c.deals.filter(inPeriod);
+      c.sold = d.length;
+      c.off = d.filter(r => r.off).length;
+      c.sizes = [0, 1, 2].map(k => d.filter(r => r.size === k).length);
+      c.family = familyShare(c.sizes);
+    });
     POP = d3.sum(comms, c => c.pop);
-    const total = d3.sum(comms, c => c.sold), top = new Set(); let cum = 0;
-    for (const c of d3.sort(comms.filter(c => c.sold), c => -c.sold)) { if (cum >= total / 2) break; top.add(c.id); cum += c.sold; }
+    const total = d3.sum(comms, c => c.sold);
+
+    // b) "the busiest": add the biggest sellers one by one until they make half of all flat sales
+    const top = new Set();
+    let cum = 0;
+    for (const c of d3.sort(comms.filter(c => c.sold), c => -c.sold)) {
+      if (cum >= total / 2) break;
+      top.add(c.id);
+      cum += c.sold;
+    }
     const m = { total, top, busiest: top.size };
-    comms.forEach(c => { c.ss = c.sold / total; c.ps = c.pop / POP; c.group = SPLITS[state.split].group(c, m); });
-    m.g = [0, 1, 2].map(k => { const cs = comms.filter(c => c.group === k); return { people: d3.sum(cs, c => c.ps), sales: d3.sum(cs, c => c.ss) }; });
+
+    // c) shares of Dubai, and which group each community is in
+    comms.forEach(c => {
+      c.ss = c.sold / total;                   // share of flat sales
+      c.ps = c.pop / POP;                      // share of residents
+      c.group = SPLITS[state.split].group(c, m);
+    });
+
+    // d) totals for each group, and the city-wide 2-bed+ share
+    m.g = [0, 1, 2].map(k => {
+      const cs = comms.filter(c => c.group === k);
+      return { people: d3.sum(cs, c => c.ps), sales: d3.sum(cs, c => c.ss) };
+    });
     m.family = familyShare([0, 1, 2].map(k => d3.sum(comms, c => c.sizes[k])));
     return m;
   }
 
-  // =====================================================================
-  // 3. THE RIBBONS: residents (left) flow into flat sales (right)
-  // =====================================================================
-  const svg = d3.select('#flow'), X0 = 165, X1 = 560, BW = 12, TOP = 64, SPAN = 525, GAP = 18;
-  const flowComms = comms.filter(c => d3.max(c.pops) > 0 || c.deals.length);
-  const ribbonPath = (c, grow = 1) => { const xa = X0 + BW, xb = xa + (X1 - xa) * grow, xm = (xa + xb) / 2;   // a smooth S-shaped band
-    return `M${xa},${c.a0}C${xm},${c.a0} ${xm},${c.b0} ${xb},${c.b0}L${xb},${c.b1}C${xm},${c.b1} ${xm},${c.a1} ${xa},${c.a1}Z`; };
-  const gFlow = svg.append('g'), gDrill = svg.append('g');                 // the ribbon view, and the "when do they arrive" view
-  const head = gFlow.append('g'), gRib = gFlow.append('g'), gBars = gFlow.append('g'), gNames = gFlow.append('g').style('pointer-events', 'none'), gNotes = gFlow.append('g');
-  const ribbons = gRib.selectAll('path').data(flowComms, c => c.id).join('path').attr('class', 'ribbon').attr('stroke', '#fff').attr('stroke-width', .4);
-  const left = gBars.selectAll('rect.l').data(flowComms, c => c.id).join('rect').attr('class', 'seg-bar l').attr('x', X0).attr('width', BW);
-  const right = gBars.selectAll('rect.r').data(flowComms, c => c.id).join('rect').attr('class', 'seg-bar r').attr('x', X1).attr('width', BW);
-  const hLeft = head.append('text').attr('x', X0).attr('y', TOP - 20).attr('font-size', 11).attr('font-weight', 700).attr('letter-spacing', '.1em').attr('fill', '#777');
-  const hRight = head.append('text').attr('x', X1 + BW).attr('y', TOP - 20).attr('text-anchor', 'end').attr('font-size', 11).attr('font-weight', 700).attr('letter-spacing', '.1em').attr('fill', '#777');
-  let first = true, lastM = null;
 
+  // ===================================================================
+  // 7. RIBBON CHART: create the shapes (once; after this they only move)
+  // ===================================================================
+  const svg = d3.select('#flow');
+  const X0 = 165, X1 = 560;      // x of the left bar (residents) and the right bar (flat sales)
+  const BW = 12;                 // bar width
+  const TOP = 64, SPAN = 525;    // top of the bars, and the height that stands for 100%
+  const GAP = 18;                // gap between the three groups
+  const flowComms = comms.filter(c => d3.max(c.pops) > 0 || c.deals.length);   // communities that ever had people or sales
+
+  // the S-shaped band from a community's slice on the left to its slice on the right
+  // (grow goes from 0 to 1 on first load, so the ribbons grow out of the left bar)
+  const ribbonPath = (c, grow = 1) => {
+    const xa = X0 + BW, xb = xa + (X1 - xa) * grow, xm = (xa + xb) / 2;
+    return `M${xa},${c.a0}C${xm},${c.a0} ${xm},${c.b0} ${xb},${c.b0}L${xb},${c.b1}C${xm},${c.b1} ${xm},${c.a1} ${xa},${c.a1}Z`;
+  };
+
+  // layers, back to front
+  const gFlow = svg.append('g');                                 // the ribbon view
+  const gDrill = svg.append('g');                                // the drill-down view (empty until a group is clicked)
+  const head = gFlow.append('g');                                // column headings
+  const gRib = gFlow.append('g');                                // ribbons
+  const gBars = gFlow.append('g');                               // bar slices
+  const gNames = gFlow.append('g').style('pointer-events', 'none');   // name labels
+  const gNotes = gFlow.append('g');                              // group notes on the right
+
+  // one ribbon, one left slice and one right slice per community, matched to it by community id
+  const ribbons = gRib.selectAll('path').data(flowComms, c => c.id).join('path')
+    .attr('class', 'ribbon').attr('stroke', '#fff').attr('stroke-width', .4);
+  const left = gBars.selectAll('rect.l').data(flowComms, c => c.id).join('rect')
+    .attr('class', 'seg-bar l').attr('x', X0).attr('width', BW);
+  const right = gBars.selectAll('rect.r').data(flowComms, c => c.id).join('rect')
+    .attr('class', 'seg-bar r').attr('x', X1).attr('width', BW);
+
+  const hLeft = head.append('text').attr('x', X0).attr('y', TOP - 20)
+    .attr('font-size', 11).attr('font-weight', 700).attr('letter-spacing', '.1em').attr('fill', '#777');
+  const hRight = head.append('text').attr('x', X1 + BW).attr('y', TOP - 20).attr('text-anchor', 'end')
+    .attr('font-size', 11).attr('font-weight', 700).attr('letter-spacing', '.1em').attr('fill', '#777');
+
+  let first = true;     // true only for the first draw (slower grow-in animation)
+  let lastM = null;     // the latest numbers from measure()
+
+
+  // ===================================================================
+  // 8. RIBBON CHART: draw() puts everything in place
+  // runs at the start and after every button click
+  // ===================================================================
   function draw() {
     const m = measure(), S = SPLITS[state.split], col = k => S.colours[k], names = S.names(m);
-    let a = TOP, b = TOP, g = 0;                                             // stack: group by group, biggest sellers first
-    d3.sort(flowComms, c => c.group, c => -c.sold, c => -c.pop).forEach(c => { if (c.group !== g) { a += GAP * (c.group - g); b += GAP * (c.group - g); g = c.group; }
-      [c.a0, c.a1, c.b0, c.b1] = [a, a += c.ps * SPAN, b, b += c.ss * SPAN]; });
+
+    // a) positions: stack the communities group by group (biggest sellers first)
+    //    and give each one a slice on both bars
+    let a = TOP, b = TOP, g = 0;
+    d3.sort(flowComms, c => c.group, c => -c.sold, c => -c.pop).forEach(c => {
+      if (c.group !== g) { a += GAP * (c.group - g); b += GAP * (c.group - g); g = c.group; }
+      c.a0 = a; a += c.ps * SPAN; c.a1 = a;    // left slice  = share of residents
+      c.b0 = b; b += c.ss * SPAN; c.b1 = b;    // right slice = share of flat sales
+    });
+
+    // b) column headings
+    hLeft.text(`WHERE PEOPLE LIVE · ${POP_YEAR[state.period]}`);
+    hRight.text(`WHERE FLATS SOLD · ${state.period}`);
+
+    // c) the three group notes on the right, nudged apart so they never overlap
+    const notes = [0, 1, 2].map(k => {
+      const cs = flowComms.filter(c => c.group === k);
+      return { k, y: cs.length ? (m.g[k].sales ? (d3.min(cs, c => c.b0) + d3.max(cs, c => c.b1)) / 2 : d3.max(cs, c => c.b1) + 10) : 600 };
+    });
+    notes.forEach((n, i) => { if (i) n.y = Math.max(n.y, notes[i - 1].y + 84); });
+    notes.forEach(n => n.y = Math.min(n.y, 580 - (2 - n.k) * 84));
+
+    const noteSel = gNotes.selectAll('g').data(notes, n => n.k).join(enter => {
+      const e = enter.append('g').style('cursor', 'pointer');
+      e.append('rect').attr('x', -8).attr('y', -18).attr('width', 168).attr('height', 84).attr('fill', 'transparent');   // click area
+      e.append('text').attr('class', 'n1').attr('font-size', 13).attr('font-weight', 700);                          // group name
+      e.append('text').attr('class', 'n2').attr('y', 17).attr('font-size', 12).attr('fill', '#777');                 // % of residents
+      e.append('text').attr('class', 'n3').attr('y', 38).attr('font-size', 19).attr('font-weight', 800);             // % of flat sales
+      e.append('text').attr('class', 'n4').attr('y', 58).attr('font-size', 11.5).attr('font-weight', 700).attr('text-decoration', 'underline');   // link
+      return e;
+    });
+    noteSel.select('.n1').text(n => names[n.k]);
+    noteSel.select('.n2').text(n => `${pct0(m.g[n.k].people)} of residents`);
+    noteSel.select('.n3').attr('fill', n => d3.color(col(n.k)).darker(.4))
+      .html(n => `→ ${pct0(m.g[n.k].sales)}<tspan font-size="12" font-weight="600"> of flat sales</tspan>`);
+    noteSel.select('.n4').attr('fill', n => d3.color(col(n.k)).darker(.6))
+      .text(n => m.g[n.k].sales ? 'When do they arrive? ›' : 'Who lives here? ›');
+
+    // HOVER a group note: highlight that whole group
+    // CLICK a group note: open its drill-down (section 13)
+    noteSel
+      .on('mouseenter', (e, n) => focus({ group: n.k }))
+      .on('mouseleave', () => focus(state.pinned ? { comm: state.pinned } : null))
+      .on('click', (e, n) => { state.drill = n.k; drawDrill(); });
+
+    // d) ANIMATION: everything in the ribbon chart moves to its new place together
     const t = svg.transition().duration(first ? 1600 : 900).ease(d3.easeCubicInOut);
-    if (first) ribbons.attr('d', c => ribbonPath(c, 0)).attr('fill-opacity', .55);   // on load the ribbons grow out of the residents bar
-    ribbons.transition(t).delay(first ? c => c.a0 / 3 : 0).attr('d', c => ribbonPath(c)).attr('fill', c => col(c.group));
-    left.transition(t).attr('y', c => c.a0).attr('height', c => c.a1 - c.a0).attr('fill', c => d3.color(col(c.group)).darker(.6));
-    right.transition(t).delay(first ? 900 : 0).attr('y', c => c.b0).attr('height', c => c.b1 - c.b0).attr('fill', c => d3.color(col(c.group)).darker(.6));
-    hLeft.text(`WHERE PEOPLE LIVE · ${POP_YEAR[state.period]}`); hRight.text(`WHERE FLATS SOLD · ${state.period}`);
-    // the three groups, explained in place on the right; nudged apart so they never overlap
-    const notes = [0, 1, 2].map(k => { const cs = flowComms.filter(c => c.group === k);
-      return { k, y: cs.length ? (m.g[k].sales ? (d3.min(cs, c => c.b0) + d3.max(cs, c => c.b1)) / 2 : d3.max(cs, c => c.b1) + 10) : 600 }; });
-    notes.forEach((n, i) => { if (i) n.y = Math.max(n.y, notes[i - 1].y + 84); }); notes.forEach(n => n.y = Math.min(n.y, 580 - (2 - n.k) * 84));
-    gNotes.selectAll('g').data(notes, n => n.k).join(enter => { const e = enter.append('g').style('cursor', 'pointer');
-        e.append('rect').attr('x', -8).attr('y', -18).attr('width', 168).attr('height', 84).attr('fill', 'transparent');   // click target
-        e.append('text').attr('class', 'n1').attr('font-size', 13).attr('font-weight', 700); e.append('text').attr('class', 'n2').attr('y', 17).attr('font-size', 12).attr('fill', '#777');
-        e.append('text').attr('class', 'n3').attr('y', 38).attr('font-size', 19).attr('font-weight', 800);
-        e.append('text').attr('class', 'n4').attr('y', 58).attr('font-size', 11.5).attr('font-weight', 700).attr('text-decoration', 'underline'); return e; })
-      .on('mouseenter', (e, n) => focus({ group: n.k })).on('mouseleave', () => focus(state.pinned ? { comm: state.pinned } : null)).on('click', (e, n) => { state.drill = n.k; drawDrill(); })
-      .call(s => { s.select('.n1').text(n => names[n.k]); s.select('.n2').text(n => `${pct0(m.g[n.k].people)} of residents`);
-                   s.select('.n3').attr('fill', n => d3.color(col(n.k)).darker(.4))
-                     .html(n => `→ ${pct0(m.g[n.k].sales)}<tspan font-size="12" font-weight="600"> of flat sales</tspan>`);
-                   s.select('.n4').attr('fill', n => d3.color(col(n.k)).darker(.6)).text(n => m.g[n.k].sales ? 'When do they arrive? ›' : 'Who lives here? ›'); })
-      .transition(t).attr('transform', n => `translate(718,${n.y - 14})`);
-    drawKpis(S.kpis(m), col); lastM = m;
-    paintMap(t, col); first = false; drawDrill();
+    if (first) ribbons.attr('d', c => ribbonPath(c, 0)).attr('fill-opacity', .55);   // first load: ribbons start flat at the left bar
+    ribbons.transition(t)                                   // ribbons bend into place (on first load they grow out, top ones first)
+      .delay(first ? c => c.a0 / 3 : 0)
+      .attr('d', c => ribbonPath(c))
+      .attr('fill', c => col(c.group));
+    left.transition(t)                                      // left bar slices
+      .attr('y', c => c.a0).attr('height', c => c.a1 - c.a0)
+      .attr('fill', c => d3.color(col(c.group)).darker(.6));
+    right.transition(t)                                     // right bar slices (on first load they wait for the ribbons)
+      .delay(first ? 900 : 0)
+      .attr('y', c => c.b0).attr('height', c => c.b1 - c.b0)
+      .attr('fill', c => d3.color(col(c.group)).darker(.6));
+    noteSel.transition(t)                                   // group notes slide next to their group
+      .attr('transform', n => `translate(718,${n.y - 14})`);
+
+    // e) the rest of the page follows: headline numbers, map, drill-down
+    drawKpis(S.kpis(m), col);
+    lastM = m;
+    paintMap(t, col);
+    first = false;
+    drawDrill();
   }
 
-  // labels: the biggest sellers on the right, the biggest populations on the left, plus whatever is in focus
+
+  // ===================================================================
+  // 9. NAME LABELS next to the bars
+  // the 5 biggest sellers on the right, the 3 biggest populations on the
+  // left, plus the community in focus
+  // ===================================================================
   function drawNames(extra) {
-    const big = (key, side) => d3.sort(flowComms, c => -c[key]).slice(0, side === 'r' ? 5 : 3).filter(c => (side === 'r' ? c.b1 - c.b0 : c.a1 - c.a0) >= 9);
+    const big = (key, side) => d3.sort(flowComms, c => -c[key]).slice(0, side === 'r' ? 5 : 3)
+      .filter(c => (side === 'r' ? c.b1 - c.b0 : c.a1 - c.a0) >= 9);   // only if the slice is tall enough for text
     const items = [...big('ss', 'r').map(c => [c, 'r']), ...big('ps', 'l').map(c => [c, 'l'])];
     if (extra && !items.some(d => d[0] === extra)) items.push([extra, extra.sold ? 'r' : 'l']);
-    gNames.selectAll('text').data(items, d => d[0].id + d[1]).join('text').attr('font-size', 11.5).attr('font-weight', d => d[0] === extra ? 800 : 600)
-      .attr('paint-order', 'stroke').attr('stroke', '#fff').attr('stroke-width', 3).attr('text-anchor', d => d[1] === 'r' ? 'start' : 'end')
-      .attr('x', d => d[1] === 'r' ? X1 + BW + 6 : X0 - 6).attr('y', d => (d[1] === 'r' ? (d[0].b0 + d[0].b1) / 2 : (d[0].a0 + d[0].a1) / 2) + 4).text(d => d[0].label);
+    gNames.selectAll('text').data(items, d => d[0].id + d[1]).join('text')
+      .attr('font-size', 11.5).attr('font-weight', d => d[0] === extra ? 800 : 600)
+      .attr('paint-order', 'stroke').attr('stroke', '#fff').attr('stroke-width', 3)   // white outline so names stay readable
+      .attr('text-anchor', d => d[1] === 'r' ? 'start' : 'end')
+      .attr('x', d => d[1] === 'r' ? X1 + BW + 6 : X0 - 6)
+      .attr('y', d => (d[1] === 'r' ? (d[0].b0 + d[0].b1) / 2 : (d[0].a0 + d[0].a1) / 2) + 4)
+      .text(d => d[0].label);
   }
 
-  // =====================================================================
-  // 4. THE LINKED MAP AND THE DETAIL CARD
-  // =====================================================================
-  const mapComms = comms.filter(c => c.lon < 55.6), ring = f => f.geometry.type === 'Polygon' ? f.geometry.coordinates.flat() : f.geometry.coordinates.flat(2);
+
+  // ===================================================================
+  // 10. MAP
+  // ===================================================================
+  // leave out Hatta and the far east so the city is not tiny
+  const mapComms = comms.filter(c => c.lon < 55.6);
+  const ring = f => f.geometry.type === 'Polygon' ? f.geometry.coordinates.flat() : f.geometry.coordinates.flat(2);
+
+  // projection fitted to the box; shapes are drawn on a flat plane point by point
   const merc = d3.geoMercator().fitExtent([[6, 6], [334, 284]], { type: 'MultiPoint', coordinates: mapComms.flatMap(c => ring(c.feature)) });
   const path = d3.geoPath(d3.geoTransform({ point(x, y) { const p = merc([x, y]); this.stream.point(p[0], p[1]); } }));
+
   const map = d3.select('#map');
-  map.append('rect').attr('width', 340).attr('height', 290).attr('rx', 8).attr('fill', '#eef4f7');
-  const polys = map.append('g').selectAll('path').data(mapComms, c => c.id).join('path').attr('class', 'comm').attr('d', c => path(c.feature))
-    .attr('stroke', '#fff').attr('stroke-width', .4);
+  map.append('rect').attr('width', 340).attr('height', 290).attr('rx', 8).attr('fill', '#eef4f7');   // sea
+  const polys = map.append('g').selectAll('path').data(mapComms, c => c.id).join('path')             // one shape per community
+    .attr('class', 'comm').attr('d', c => path(c.feature)).attr('stroke', '#fff').attr('stroke-width', .4);
+
   const kmPx = Math.abs(merc([55.27, 25.2])[1] - merc([55.27, 25.2 + 1 / 110.6])[1]);   // 1 km in map pixels
-  const rings = map.append('g').selectAll('circle').data(stations).join('circle').attr('cx', s => merc(s)[0]).attr('cy', s => merc(s)[1])
+  const rings = map.append('g').selectAll('circle').data(stations).join('circle')        // 1 km ring around each station
+    .attr('cx', s => merc(s)[0]).attr('cy', s => merc(s)[1])
     .attr('r', kmPx).attr('fill', 'none').attr('stroke', '#178f86').attr('stroke-width', .8);
-  map.append('g').selectAll('circle').data(stations).join('circle').attr('cx', s => merc(s)[0]).attr('cy', s => merc(s)[1]).attr('r', 1.6).attr('fill', '#222');
+  map.append('g').selectAll('circle').data(stations).join('circle')                      // station dots
+    .attr('cx', s => merc(s)[0]).attr('cy', s => merc(s)[1]).attr('r', 1.6).attr('fill', '#222');
+
   map.append('text').attr('x', 12).attr('y', 22).attr('font-size', 10.5).attr('fill', '#5b7f91').attr('font-style', 'italic').text('Arabian Gulf');
   map.append('text').attr('x', 328).attr('y', 280).attr('text-anchor', 'end').attr('font-size', 9.5).attr('fill', '#777').text('● metro station');
   map.append('text').attr('x', 12).attr('y', 280).attr('font-size', 9.5).attr('fill', '#999').text('grey: under 1,000 residents and no sales');
 
+  // ANIMATION: map colours fade to the new groups; metro rings show only in metro mode
   function paintMap(t, col) {
-    polys.transition().duration(t.duration()).attr('fill', c => c.pop >= 1000 || c.sold ? col(c.group) : '#e6e6e3');   // grey: almost nobody lives there and nothing sold
-    rings.transition().duration(t.duration()).attr('opacity', state.split === 'metro' ? .5 : 0);
+    polys.transition().duration(t.duration())
+      .attr('fill', c => c.pop >= 1000 || c.sold ? col(c.group) : '#e6e6e3');   // grey: almost nobody lives there and nothing sold
+    rings.transition().duration(t.duration())
+      .attr('opacity', state.split === 'metro' ? .5 : 0);
   }
 
-  function focus(f) {                                                       // highlight one community or one group everywhere
-    if (!f && state.drill != null) f = { group: state.drill };
-    const c = f && f.comm, k = f && f.group, on = d => c ? d === c : k != null ? d.group === k : true;
+
+  // ===================================================================
+  // 11. HIGHLIGHT ONE COMMUNITY OR GROUP: focus()
+  // every ribbon, bar slice and map shape checks "is this the one in focus?"
+  // ===================================================================
+  function focus(f) {
+    if (!f && state.drill != null) f = { group: state.drill };   // while a group is open, keep it highlighted
+    const c = f && f.comm, k = f && f.group;
+    const on = d => c ? d === c : k != null ? d.group === k : true;
     ribbons.attr('fill-opacity', d => !f ? .55 : on(d) ? .9 : .08);
     gBars.selectAll('rect').attr('opacity', d => !f || on(d) ? 1 : .25);
-    polys.attr('opacity', d => !f || on(d) ? 1 : .25).attr('stroke', d => c && d === c ? '#161616' : '#fff').attr('stroke-width', d => c && d === c ? 1.6 : .4);
-    if (c) polys.filter(d => d === c).raise();
-    drawNames(c); drawDetail(c);
+    polys.attr('opacity', d => !f || on(d) ? 1 : .25)
+      .attr('stroke', d => c && d === c ? '#161616' : '#fff')
+      .attr('stroke-width', d => c && d === c ? 1.6 : .4);
+    if (c) polys.filter(d => d === c).raise();   // bring its map shape to the front so the outline shows
+    drawNames(c);
+    drawDetail(c);
   }
 
+
+  // ===================================================================
+  // 12. DETAIL CARD for one community (bottom right)
+  // ===================================================================
   function drawDetail(c) {
     const box = d3.select('#detail'), S = SPLITS[state.split];
     if (!c) { box.html(`<h2>Pick a community</h2><p>Hover or click any ribbon, row or place on the map.</p>`); return; }
-    const ratio = c.ps ? c.ss / c.ps : null, py = POP_YEAR[state.period];
+    const ratio = c.ps ? c.ss / c.ps : null, py = POP_YEAR[state.period];   // ratio = share of sales / share of residents
+
+    // the text lines
     box.style('--c', S.colours[c.group]).html(`<h2>${c.label}</h2>
       <div>${d3.format(',')(c.pop)} residents in ${py} · <b>${pct(c.ps)}</b> of Dubai's</div>
       <div><b>${pct(c.ss)}</b> of Dubai's flat sales in ${state.period}${c.sold ? ` · ${pct0(c.off / c.sold)} off-plan` : ''}</div>
@@ -224,34 +474,65 @@ function start(comms, stations) {
       ${c.sold ? `<div><b>Ready or off-plan:</b> ${pct0(c.off / c.sold)} off-plan, so ${c.off / c.sold >= .5 ? 'most new residents arrive after handover' : 'most new residents are moving in now'}</div>` : ''}
       ${c.sold && c.family != null ? `<div><b>Flat size:</b> ${pct0(1 - c.family)} studios or 1-beds, ${pct0(c.family)} 2-bed+ · ${c.family >= lastM.family + .05 ? 'suits more families than average' : c.family <= lastM.family - .1 ? 'suits mostly singles and couples' : 'a typical mix'}</div>` : ''}
       <div>${c.km.toFixed(1)} km from the nearest metro station</div><svg id="spark" viewBox="0 0 300 58"></svg>`);
-    const x = d3.scaleBand(YEARS, [0, 300]).padding(.2), y = d3.scaleLinear([0, d3.max(c.yearly) || 1], [0, 34]), s = d3.select('#spark');
+
+    // the small chart: flats sold each year, ready at the bottom, off-plan on top
+    const x = d3.scaleBand(YEARS, [0, 300]).padding(.2);
+    const y = d3.scaleLinear([0, d3.max(c.yearly) || 1], [0, 34]);   // scaled to this community's busiest year
+    const s = d3.select('#spark');
     s.append('text').attr('y', 10).attr('font-size', 10).attr('fill', '#999').text('Flats sold each year (dark = ready, gold = off-plan)');
-    s.selectAll('rect.r').data(YEARS).join('rect').attr('x', v => x(v)).attr('width', x.bandwidth()).attr('y', (v, i) => 48 - y(c.yearly[i] - c.yearlyOff[i]))
-      .attr('height', (v, i) => y(c.yearly[i] - c.yearlyOff[i])).attr('fill', '#55697f');
-    s.selectAll('rect.o').data(YEARS).join('rect').attr('x', v => x(v)).attr('width', x.bandwidth()).attr('y', (v, i) => 48 - y(c.yearly[i]))
-      .attr('height', (v, i) => y(c.yearlyOff[i])).attr('fill', '#e5a43a');
-    s.selectAll('text.yr').data([2015, 2025]).join('text').attr('class', 'yr').attr('x', v => x(v) + x.bandwidth() / 2).attr('y', 58)
+    s.selectAll('rect.r').data(YEARS).join('rect')                     // ready part
+      .attr('x', v => x(v)).attr('width', x.bandwidth())
+      .attr('y', (v, i) => 48 - y(c.yearly[i] - c.yearlyOff[i])).attr('height', (v, i) => y(c.yearly[i] - c.yearlyOff[i]))
+      .attr('fill', READY);
+    s.selectAll('rect.o').data(YEARS).join('rect')                     // off-plan part, stacked on top
+      .attr('x', v => x(v)).attr('width', x.bandwidth())
+      .attr('y', (v, i) => 48 - y(c.yearly[i])).attr('height', (v, i) => y(c.yearlyOff[i]))
+      .attr('fill', OFFPLAN);
+    s.selectAll('text.yr').data([2015, 2025]).join('text').attr('class', 'yr')   // first and last year
+      .attr('x', v => x(v) + x.bandwidth() / 2).attr('y', 58)
       .attr('text-anchor', 'middle').attr('font-size', 9).attr('fill', '#999').text(v => v);
   }
 
-  // =====================================================================
-  // 4b. INSIDE ONE GROUP: when do its new residents arrive, and what size of flats sold?
-  // ready flats = people can move in now; off-plan = sold before completion, people arrive after handover
-  // =====================================================================
+
+  // ===================================================================
+  // 13. DRILL-DOWN: inside one group, when do new residents arrive and
+  // what size of flats sold?
+  // ready = people can move in now; off-plan = they move in after handover
+  // ===================================================================
   function drawDrill() {
-    const k = state.drill, open = k != null, t = svg.transition().duration(800).ease(d3.easeCubicInOut);
+    const k = state.drill, open = k != null;
+    const t = svg.transition().duration(800).ease(d3.easeCubicInOut);
+
+    // a) ANIMATION: the ribbons fade out when a group opens, and back in when it closes
     gFlow.style('pointer-events', open ? 'none' : null).transition(t).attr('opacity', open ? 0 : 1);
-    if (!open) { gDrill.selectAll('*').transition(t).attr('opacity', 0).remove(); focus(state.pinned ? { comm: state.pinned } : null); return; }
-    const S = SPLITS[state.split], col = S.colours[k], members = flowComms.filter(c => c.group === k), sells = d3.sum(members, c => c.sold) > 0;
-    let rows = sells ? d3.sort(members.filter(c => c.sold), c => -c.sold) : d3.sort(members, c => -c.pop);
-    if (rows.length > 15) {                                                  // keep it readable: 14 biggest + everyone else in one row
-      const rest = rows.slice(14), sum = f => d3.sum(rest, f);
-      rows = [...rows.slice(0, 14), { id: 'rest', label: `${rest.length} others`, rest: true, sold: sum(c => c.sold), off: sum(c => c.off), ss: sum(c => c.ss), ps: sum(c => c.ps),
-        b0: 600, b1: 600, sizes: [0, 1, 2].map(i => sum(c => c.sizes[i])), family: familyShare([0, 1, 2].map(i => sum(c => c.sizes[i]))), yearly: YEARS.map((y, i) => sum(c => c.yearly[i])), yearlyOff: YEARS.map((y, i) => sum(c => c.yearlyOff[i])) }];
+    if (!open) {
+      gDrill.selectAll('*').transition(t).attr('opacity', 0).remove();   // ANIMATION: drill-down fades away
+      focus(state.pinned ? { comm: state.pinned } : null);
+      return;
     }
-    rows.sort((a, b) => (!!a.rest - !!b.rest) || d3.descending(sells ? a.ss : a.ps, sells ? b.ss : b.ps));   // biggest first, 'others' last
+
+    // b) the rows: biggest first; past 15, the 14 biggest plus one "others" row
+    const S = SPLITS[state.split], col = S.colours[k];
+    const members = flowComms.filter(c => c.group === k), sells = d3.sum(members, c => c.sold) > 0;
+    let rows = sells ? d3.sort(members.filter(c => c.sold), c => -c.sold) : d3.sort(members, c => -c.pop);
+    if (rows.length > 15) {
+      const rest = rows.slice(14), sum = f => d3.sum(rest, f);
+      rows = [...rows.slice(0, 14), {
+        id: 'rest', label: `${rest.length} others`, rest: true,
+        sold: sum(c => c.sold), off: sum(c => c.off), ss: sum(c => c.ss), ps: sum(c => c.ps), b0: 600, b1: 600,
+        sizes: [0, 1, 2].map(i => sum(c => c.sizes[i])), family: familyShare([0, 1, 2].map(i => sum(c => c.sizes[i]))),
+        yearly: YEARS.map((y, i) => sum(c => c.yearly[i])), yearlyOff: YEARS.map((y, i) => sum(c => c.yearlyOff[i]))
+      }];
+    }
+    rows.sort((a, b) => (!!a.rest - !!b.rest) || d3.descending(sells ? a.ss : a.ps, sells ? b.ss : b.ps));   // "others" last
+
+    // c) sizes: bar length = share of Dubai's flat sales (or residents, if the group sold nothing)
     const share = sells ? d3.sum(members, c => c.off) / d3.sum(members, c => c.sold) : 0, names = S.names(lastM);
-    const x = d3.scaleLinear([0, d3.max(rows.filter(c => !c.rest), c => sells ? c.ss : c.ps)], [200, 430]), RH = 30, T0 = 108, W0 = 565, WW = 115;
+    const x = d3.scaleLinear([0, d3.max(rows.filter(c => !c.rest), c => sells ? c.ss : c.ps)], [200, 430]);
+    const RH = 30, T0 = 108;     // row height, first row
+    const W0 = 565, WW = 115;    // x and width of the flat size bar
+
+    // d) header: group name, one-line summary, column titles and legends
     gDrill.selectAll('.top').remove();
     const top = gDrill.append('g').attr('class', 'top').attr('opacity', 0);
     top.append('text').attr('y', 30).attr('font-size', 17).attr('font-weight', 800).attr('fill', d3.color(col).darker(.5)).text(names[k]);
@@ -261,67 +542,123 @@ function start(comms, stations) {
     if (sells) {
       [['FLATS SOLD · READY OR OFF-PLAN', 200], ['FLAT SIZE', W0]].forEach(([txt, x0]) =>
         top.append('text').attr('x', x0).attr('y', 70).attr('font-size', 10.5).attr('font-weight', 700).attr('letter-spacing', '.08em').attr('fill', '#888').text(txt));
-      [['#55697f', 'ready: move in now', 200], ['#e5a43a', 'off-plan: move in after handover', 318], ...SIZE_KEY.map(([c, txt], i) => [c, txt, W0 + [0, 82, 130][i]])].forEach(([c, txt, x0]) => {
-        top.append('rect').attr('x', x0).attr('y', 77).attr('width', 10).attr('height', 10).attr('fill', c);
-        top.append('text').attr('x', x0 + 13).attr('y', 86).attr('font-size', 10.5).attr('fill', '#555').text(txt); });
+      [[READY, 'ready: move in now', 200], [OFFPLAN, 'off-plan: move in after handover', 318], ...SIZE_KEY.map(([c, txt], i) => [c, txt, W0 + [0, 82, 130][i]])]
+        .forEach(([c, txt, x0]) => {
+          top.append('rect').attr('x', x0).attr('y', 77).attr('width', 10).attr('height', 10).attr('fill', c);
+          top.append('text').attr('x', x0 + 13).attr('y', 86).attr('font-size', 10.5).attr('fill', '#555').text(txt);
+        });
       top.append('text').attr('x', W0 + 188).attr('y', 86).attr('font-size', 10.5).attr('fill', '#888').text('% = 2-bed+');
     }
+
+    // CLICK "← All communities": close the drill-down
     const back = top.append('g').style('cursor', 'pointer').on('click', () => { state.drill = null; drawDrill(); });
-    back.append('rect').attr('x', 730).attr('y', 10).attr('width', 146).attr('height', 30).attr('fill', 'transparent');   // click target
+    back.append('rect').attr('x', 730).attr('y', 10).attr('width', 146).attr('height', 30).attr('fill', 'transparent');   // click area
     back.append('text').attr('x', 870).attr('y', 30).attr('text-anchor', 'end').attr('font-size', 13).attr('font-weight', 700).text('← All communities');
-    top.transition(t).attr('opacity', 1);
-    const rowsSel = gDrill.selectAll('g.drow').data(rows, c => c.id).join(enter => { const g = enter.append('g').attr('class', 'drow').style('cursor', 'pointer')
-        .attr('opacity', 0).attr('transform', c => `translate(0,${(c.b0 + c.b1) / 2})`);            // each row starts where its ribbon ended
-      g.append('rect').attr('x', 0).attr('y', -RH / 2).attr('width', 880).attr('height', RH).attr('fill', 'transparent');   // hover target
-      g.append('text').attr('class', 'lb').attr('x', 190).attr('y', 4).attr('text-anchor', 'end').attr('font-size', 12).attr('font-weight', 600);
-      g.append('rect').attr('class', 'now').attr('y', -8).attr('height', 16).attr('x', 200);
-      g.append('rect').attr('class', 'later').attr('y', -8).attr('height', 16);
-      g.append('text').attr('class', 'vl').attr('y', 4).attr('font-size', 11.5).attr('font-weight', 700);
-      [0, 1, 2].forEach(k => g.append('rect').attr('class', 'z' + k).attr('y', -8).attr('height', 16).attr('fill', SIZE_KEY[k][0]));
-      g.append('text').attr('class', 'fm').attr('y', 4).attr('font-size', 10.5).attr('fill', '#555'); return g; }, update => update, exit => exit.transition(t).attr('opacity', 0).remove())
-      .on('mouseenter', (e, c) => { if (!c.rest) focus({ comm: c }); }).on('mouseleave', () => focus(state.pinned ? { comm: state.pinned } : null))
+
+    // e) one row per community, matched by id; a new row starts where its ribbon ended
+    const rowsSel = gDrill.selectAll('g.drow').data(rows, c => c.id).join(
+      enter => {
+        const g = enter.append('g').attr('class', 'drow').style('cursor', 'pointer')
+          .attr('opacity', 0).attr('transform', c => `translate(0,${(c.b0 + c.b1) / 2})`);
+        g.append('rect').attr('x', 0).attr('y', -RH / 2).attr('width', 880).attr('height', RH).attr('fill', 'transparent');   // hover area
+        g.append('text').attr('class', 'lb').attr('x', 190).attr('y', 4).attr('text-anchor', 'end').attr('font-size', 12).attr('font-weight', 600);   // name
+        g.append('rect').attr('class', 'now').attr('y', -8).attr('height', 16).attr('x', 200);    // ready part
+        g.append('rect').attr('class', 'later').attr('y', -8).attr('height', 16);                 // off-plan part
+        g.append('text').attr('class', 'vl').attr('y', 4).attr('font-size', 11.5).attr('font-weight', 700);   // "% off-plan"
+        [0, 1, 2].forEach(k => g.append('rect').attr('class', 'z' + k).attr('y', -8).attr('height', 16).attr('fill', SIZE_KEY[k][0]));   // flat sizes
+        g.append('text').attr('class', 'fm').attr('y', 4).attr('font-size', 10.5).attr('fill', '#555');      // % 2-bed+
+        return g;
+      },
+      update => update,
+      exit => exit.transition(t).attr('opacity', 0).remove()                // ANIMATION: rows that are no longer needed fade out
+    );
+
+    // HOVER a row: highlight that community on the map and in the card
+    // CLICK a row: keep it selected
+    rowsSel
+      .on('mouseenter', (e, c) => { if (!c.rest) focus({ comm: c }); })
+      .on('mouseleave', () => focus(state.pinned ? { comm: state.pinned } : null))
       .on('click', (e, c) => { if (!c.rest) { state.pinned = state.pinned === c ? null : c; focus(state.pinned ? { comm: c } : null); } });
-    rowsSel.transition(t).attr('opacity', 1).attr('transform', (c, i) => `translate(0,${T0 + i * RH})`);
+
+    // f) where each bar ends, and where ready turns into off-plan ("others" row: text only)
+    const end = c => c.rest ? x(0) : x(sells ? c.ss : c.ps);
+    const split = c => sells ? x(0) + (end(c) - x(0)) * (1 - c.off / c.sold) : end(c);
+    const mix = c => { const n = d3.sum(c.sizes || []); return n ? c.sizes.map(v => v / n) : [0, 0, 0]; };   // flat size shares
+
+    // g) text in each row
     rowsSel.select('.lb').text(c => c.label.length > 24 ? c.label.slice(0, 23) + '…' : c.label).attr('font-style', c => c.rest ? 'italic' : null);
-    const end = c => c.rest ? x(0) : x(sells ? c.ss : c.ps), split = c => sells ? x(0) + (end(c) - x(0)) * (1 - c.off / c.sold) : end(c);   // the 'others' row: text only
-    rowsSel.select('.now').transition(t).attr('width', c => split(c) - x(0)).attr('fill', sells ? '#55697f' : d3.color(col).darker(.2));
-    rowsSel.select('.later').transition(t).attr('x', split).attr('width', c => end(c) - split(c)).attr('fill', '#e5a43a');
-    rowsSel.select('.vl').text(c => c.rest ? (sells ? `together ${pct(c.ss)} of flat sales, ${pct0(c.off / c.sold)} off-plan` : `together ${pct(c.ps)} of residents`) : sells ? `${pct0(c.off / c.sold)} off-plan` : `${pct(c.ps)} of residents`).attr('fill', sells ? '#9a6a10' : '#555')
-      .transition(t).attr('x', c => end(c) + 8);
-    // who: the mix of flat sizes sold (studio/1-bed, 2-bed, 3-bed+), as one 100% bar
-    const mix = c => { const n = d3.sum(c.sizes || []); return n ? c.sizes.map(v => v / n) : [0, 0, 0]; };
-    [0, 1, 2].forEach(k => rowsSel.select('.z' + k).transition(t).attr('x', c => W0 + WW * d3.sum(mix(c).slice(0, k))).attr('width', c => sells ? WW * mix(c)[k] : 0));
+    rowsSel.select('.vl')
+      .text(c => c.rest ? (sells ? `together ${pct(c.ss)} of flat sales, ${pct0(c.off / c.sold)} off-plan` : `together ${pct(c.ps)} of residents`)
+                        : sells ? `${pct0(c.off / c.sold)} off-plan` : `${pct(c.ps)} of residents`)
+      .attr('fill', sells ? '#9a6a10' : '#555');
     rowsSel.select('.fm').attr('x', W0 + WW + 6).text(c => sells && d3.sum(c.sizes || []) ? pct0(c.family) : '');
+
+    // h) ANIMATION: the header fades in, rows slide from their ribbons into place, bars grow
+    top.transition(t).attr('opacity', 1);
+    rowsSel.transition(t).attr('opacity', 1).attr('transform', (c, i) => `translate(0,${T0 + i * RH})`);
+    rowsSel.select('.now').transition(t).attr('width', c => split(c) - x(0)).attr('fill', sells ? READY : d3.color(col).darker(.2));
+    rowsSel.select('.later').transition(t).attr('x', split).attr('width', c => end(c) - split(c)).attr('fill', OFFPLAN);
+    rowsSel.select('.vl').transition(t).attr('x', c => end(c) + 8);
+    [0, 1, 2].forEach(k => rowsSel.select('.z' + k).transition(t)
+      .attr('x', c => W0 + WW * d3.sum(mix(c).slice(0, k)))
+      .attr('width', c => sells ? WW * mix(c)[k] : 0));
+
     focus(state.pinned && rows.includes(state.pinned) ? { comm: state.pinned } : null);
   }
 
-  // the three headline numbers count up or down to their new value
+
+  // ===================================================================
+  // 14. HEADLINE NUMBERS (the three big numbers at the top)
+  // ===================================================================
   function drawKpis(kpis, col) {
-    d3.select('#kpis').selectAll('.kpi').data(kpis).join(e => { const d = e.append('div').attr('class', 'kpi'); d.append('b').property('_v', 0); d.append('span'); return d; })
-      .style('--c', d => d3.color(col(d[3])).darker(.4))
-      .call(s => s.select('span').text(d => d[2]))
-      .select('b').transition().duration(900).tween('text', function (d) {
-        const from = this._v || 0, to = d[0], f = d3.interpolateNumber(from, to); this._v = to;
-        return k => this.textContent = Math.round(f(k)) + d[1]; });
+    d3.select('#kpis').selectAll('.kpi').data(kpis)
+      .join(e => { const d = e.append('div').attr('class', 'kpi'); d.append('b').property('_v', 0); d.append('span'); return d; })
+      .style('--c', d => d3.color(col(d[3])).darker(.4))   // colour of the group it describes
+      .call(s => s.select('span').text(d => d[2]))          // caption
+      .select('b')
+      .transition().duration(900).tween('text', function (d) {   // ANIMATION: the number counts up or down to its new value
+        const from = this._v || 0, to = d[0], f = d3.interpolateNumber(from, to);
+        this._v = to;
+        return k => this.textContent = Math.round(f(k)) + d[1];
+      });
   }
 
-  // =====================================================================
-  // 5. CONTROLS AND HOVER
-  // =====================================================================
-  const hover = sel => sel.on('mouseenter', (e, c) => focus({ comm: c })).on('mouseleave', () => focus(state.pinned ? { comm: state.pinned } : null))
+
+  // ===================================================================
+  // 15. BUTTONS, HOVER AND CLICK
+  // ===================================================================
+  // HOVER a ribbon, bar slice or map shape: highlight that community everywhere
+  // CLICK it: keep it selected (click again to let go)
+  const hover = sel => sel
+    .on('mouseenter', (e, c) => focus({ comm: c }))
+    .on('mouseleave', () => focus(state.pinned ? { comm: state.pinned } : null))
     .on('click', (e, c) => { state.pinned = state.pinned === c ? null : c; focus(state.pinned ? { comm: c } : null); });
   [ribbons, left, right, polys].forEach(hover);
+
+  // CLICK a split button: regroup the communities (and close any open drill-down)
   d3.select('#split').selectAll('button').data(Object.keys(SPLITS)).join('button').text(k => SPLITS[k].button)
     .on('click', (e, k) => { state.split = k; state.drill = null; d3.selectAll('#split button').classed('on', d => d === k); draw(); });
+
+  // CLICK a period button: show that period
   d3.select('#periods').selectAll('button').data(Object.keys(PERIODS)).join('button').text(p => p)
     .on('click', (e, p) => { state.period = p; d3.selectAll('#periods button').classed('on', d => d === p); draw(); });
-  d3.selectAll('#split button').classed('on', d => d === state.split); d3.selectAll('#periods button').classed('on', d => d === state.period);
+
+
+  // ===================================================================
+  // 16. START: mark the default buttons and draw for the first time
+  // ===================================================================
+  d3.selectAll('#split button').classed('on', d => d === state.split);
+  d3.selectAll('#periods button').classed('on', d => d === state.period);
   draw();
 }
 </script>
 <script>
-// Estimated population (usual residents) by community, 2018–2025: Dubai Data and Statistics Establishment.
+// =====================================================================
+// POPULATION TABLE
+// Estimated residents of each community, 2018–2025
+// Source: Dubai Data and Statistics Establishment (official estimates)
 // community code: [2018, 2019, 2020, 2021, 2022, 2023, 2024, 2025]
+// =====================================================================
 const POP_BY_YEAR = {
   101:[2,2,2,2,2,2,2,2], 111:[1655,1735,1961,2593,4742,5414,7824,8496], 112:[7314,7460,7537,8067,8358,8945,9129,9317], 113:[15453,15899,15985,16723,17362,18213,18455,18918], 114:[2766,2841,2869,3016,3165,3320,3391,3504], 115:[3861,3969,4020,4205,4382,4651,4767,4928], 116:[18925,19280,19414,19820,20706,21781,21870,22507],
   117:[38294,38970,39227,40105,41528,43635,43762,44836], 118:[48804,50090,50438,53075,54814,57354,57344,57980], 119:[10279,10480,10623,11097,11538,12051,12432,12801], 121:[14,14,14,15,15,2,2,2], 122:[24373,24747,24961,25839,26699,28024,28278,29187], 123:[43473,46185,46510,48739,50433,52773,52892,53733], 124:[68717,69771,70112,73087,75087,77572,78016,78855],
